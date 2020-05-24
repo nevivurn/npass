@@ -4,21 +4,30 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (app *app) cmdKey() *cli.Command {
+func cmdKey() *cli.Command {
 	return &cli.Command{
 		Name: "key",
 		Subcommands: []*cli.Command{
-			{Name: "list", Action: app.cmdKeyList},
-			{Name: "add", Action: app.cmdKeyAdd},
-			{Name: "del", Action: app.cmdKeyDel},
-			{Name: "get", Action: app.cmdKeyGet},
-			{Name: "pass", Action: app.cmdKeyPass},
+			cmdKeyAdd(),
 		},
 	}
 }
 
-func (app *app) cmdKeyList(ctx *cli.Context) error { return nil }
-func (app *app) cmdKeyAdd(ctx *cli.Context) error  { return nil }
-func (app *app) cmdKeyDel(ctx *cli.Context) error  { return nil }
-func (app *app) cmdKeyGet(ctx *cli.Context) error  { return nil }
-func (app *app) cmdKeyPass(ctx *cli.Context) error { return nil }
+func cmdKeyAdd() *cli.Command {
+	cmd := &cli.Command{
+		Name: "add",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "name",
+				Aliases:  []string{"n"},
+				Required: true,
+			},
+		},
+	}
+
+	cmd.Action = func(ctx *cli.Context) error {
+		return nil
+	}
+
+	return cmd
+}

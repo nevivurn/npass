@@ -1,57 +1,28 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/nevivurn/npass/pinentry"
 	"github.com/urfave/cli/v2"
 )
 
 func main() {
-	app := newApp()
-	app.cliApp.Run(os.Args)
+	pass, err := pinentry.ReadPassword(context.Background())
+	fmt.Printf("%q %v\n", pass, err)
+
+	if err := newApp().Run(os.Args); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
 
-type app struct {
-	cliApp *cli.App
-
-	store *store
-}
-
-func newApp() *app {
-	app := &app{}
-
-	app.cliApp = &cli.App{
-		Before: app.openDB,
-
-		Flags: []cli.Flag{
-			&cli.PathFlag{
-				Name:        "db",
-				Value:       "",
-				DefaultText: "~/.npass.db",
-			},
-		},
-
+func newApp() *cli.App {
+	return &cli.App{
 		Commands: []*cli.Command{
-			app.cmdKey(),
-			app.cmdPass(),
+			cmdKey(),
 		},
 	}
-
-	return app
-}
-
-func (app *app) openDB(ctx *cli.Context) error {
-	db := ctx.Path("db")
-	if db == "" {
-		db = filepath.Join(os.Getenv("HOME"), "npass.db")
-	}
-
-	st, err := newStore(db)
-	if err != nil {
-		return err
-	}
-	app.store = st
-
-	return nil
 }
