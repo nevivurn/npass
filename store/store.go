@@ -44,15 +44,19 @@ type Store struct {
 	db *sql.DB
 }
 
-func openDB(name string) (*sql.DB, error) {
-	dsn := fmt.Sprintf("file:%s?%s",
-		name,
-		url.Values(map[string][]string{
-			"cache":          []string{"shared"},
-			"_foreign_keys":  []string{"1"},
-			"_secure_delete": []string{"1"},
-		}).Encode(),
-	)
+func openDB(name string, create bool) (*sql.DB, error) {
+	q := url.Values{
+		"cache":          []string{"shared"},
+		"_foreign_keys":  []string{"1"},
+		"_secure_delete": []string{"1"},
+	}
+	if create {
+		q.Set("mode", "rwc")
+	} else {
+		q.Set("mode", "rw")
+	}
+
+	dsn := fmt.Sprintf("file:%s?%s", name, q.Encode())
 
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
@@ -65,7 +69,7 @@ func openDB(name string) (*sql.DB, error) {
 
 // NewInit creates a new store and initializes the DB schema.
 func NewInit(name string) (*Store, error) {
-	db, err := openDB(name)
+	db, err := openDB(name, true)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +83,7 @@ func NewInit(name string) (*Store, error) {
 
 // New creates a new store backed by the given database.
 func New(name string) (*Store, error) {
-	db, err := openDB(name)
+	db, err := openDB(name, false)
 	if err != nil {
 		return nil, err
 	}
