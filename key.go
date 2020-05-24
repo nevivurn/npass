@@ -29,6 +29,7 @@ func cmdKey() *cli.Command {
 		Name: "key",
 		Subcommands: []*cli.Command{
 			cmdKeyPut(),
+			cmdKeyDel(),
 		},
 	}
 
@@ -56,11 +57,11 @@ func cmdKeyPut() *cli.Command {
 		name := ctx.String(flagKeyName)
 
 		_, err = st.KeyFindName(ctx.Context, name)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
 		if err == nil {
 			return fmt.Errorf("key %q already exists", name)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
 		}
 
 		pub, priv, err := box.GenerateKey(rand.Reader)
@@ -68,14 +69,20 @@ func cmdKeyPut() *cli.Command {
 			return err
 		}
 
-		pass, err := pinentry.ReadPassword(ctx.Context, fmt.Sprintf("Enter password for key %q", name))
+		pass, err := pinentry.ReadPassword(
+			ctx.Context,
+			fmt.Sprintf("Enter password for key %q", name),
+		)
 		if err != nil {
 			return err
 		}
-		_, err = pinentry.ReadPasswordVerify(ctx.Context, "Confirm password",
+		_, err = pinentry.ReadPasswordVerify(
+			ctx.Context,
+			"Confirm password",
 			func(s string) bool {
 				return s == pass
-			})
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -96,6 +103,45 @@ func cmdKeyPut() *cli.Command {
 			Public:  pub[:],
 			Private: privEnc[:],
 		})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return cmd
+}
+
+func cmdKeyDel() *cli.Command {
+	cmd := &cli.Command{
+		Name: "del",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     flagKeyName,
+				Required: true,
+			},
+		},
+	}
+
+	cmd.Action = func(ctx *cli.Context) error {
+		st, err := store.New(ctx.Path(flagDB))
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+
+		name := ctx.String(flagKeyName)
+
+		key, err := st.KeyFindName(ctx.Context, name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("key %q does not exist", name)
+		}
+		if err != nil {
+			return err
+		}
+
+		err = st.KeyDel(ctx.Context, key.ID)
 		if err != nil {
 			return err
 		}
