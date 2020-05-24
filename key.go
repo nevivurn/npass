@@ -75,17 +75,8 @@ func cmdKeyPut() *cli.Command {
 
 		pass, err := pinentry.ReadPassword(
 			ctx.Context,
-			fmt.Sprintf("Enter password for key %q", name),
-		)
-		if err != nil {
-			return err
-		}
-		_, err = pinentry.ReadPasswordVerify(
-			ctx.Context,
-			"Confirm password",
-			func(s string) bool {
-				return s == pass
-			},
+			pinentry.Prompt(fmt.Sprintf("Enter password for key %q", name)),
+			pinentry.Confirm(),
 		)
 		if err != nil {
 			return err

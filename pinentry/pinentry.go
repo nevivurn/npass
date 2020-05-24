@@ -13,6 +13,36 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+type pinentry struct {
+	prompt  string
+	confirm bool
+	verify  func(string) bool
+}
+
+// Option is used to configure pinentry.
+type Option func(*pinentry)
+
+// Prompt sets the password prompt.
+func Prompt(prompt string) Option {
+	return func(pin *pinentry) {
+		pin.prompt = prompt
+	}
+}
+
+// Confirm makes the user confirm their password.
+func Confirm() Option {
+	return func(pin *pinentry) {
+		pin.confirm = true
+	}
+}
+
+// Verify specifies the function to check whether the password is correct..
+func Verify(f func(string) bool) Option {
+	return func(pin *pinentry) {
+		pin.verify = f
+	}
+}
+
 func execPinentry(ctx context.Context) (*exec.Cmd, io.ReadWriteCloser, error) {
 	cmd := exec.CommandContext(ctx, "pinentry")
 
@@ -35,13 +65,16 @@ func execPinentry(ctx context.Context) (*exec.Cmd, io.ReadWriteCloser, error) {
 }
 
 // ReadPassword reads a password from the user.
-func ReadPassword(ctx context.Context, prompt string) (string, error) {
-	return ReadPasswordVerify(ctx, prompt, func(string) bool { return true })
-}
+func ReadPassword(ctx context.Context, opts ...Option) (string, error) {
+	pin := pinentry{
+		prompt:  "Enter your password",
+		confirm: false,
+		verify:  func(string) bool { return true },
+	}
+	for _, opt := range opts {
+		opt(&pin)
+	}
 
-// ReadPasswordVerify reads a password from the user, using the given verify function
-// to retry.
-func ReadPasswordVerify(ctx context.Context, prompt string, verify func(string) bool) (string, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -63,14 +96,19 @@ func ReadPasswordVerify(ctx context.Context, prompt string, verify func(string) 
 		return "", err
 	}
 
-	if prompt == "" {
-		prompt = "Enter password"
-	}
-	if _, err := send(brw, "SETDESC", prompt); err != nil {
+	if _, err := send(brw, "SETDESC", pin.prompt); err != nil {
 		return "", err
 	}
 	if _, err := send(brw, "SETPROMPT", "Password:"); err != nil {
 		return "", err
+	}
+	if pin.confirm {
+		if _, err := send(brw, "SETREPEAT", "Confirm:"); err != nil {
+			return "", err
+		}
+		if _, err := send(brw, "SETREPEATERROR", "Passwords do not match"); err != nil {
+			return "", err
+		}
 	}
 
 	// allow running with pinentry-curses
@@ -111,6 +149,10 @@ func ReadPasswordVerify(ctx context.Context, prompt string, verify func(string) 
 		}
 
 		if len(resps) == 0 {
+			if pin.confirm {
+				break
+			}
+
 			msg := fmt.Sprintf("Password may not be empty (try %d of 3)", try+2)
 			if _, err := send(brw, "SETERROR", msg); err != nil {
 				return "", err
@@ -118,7 +160,11 @@ func ReadPasswordVerify(ctx context.Context, prompt string, verify func(string) 
 			continue
 		}
 
-		if !verify(resps[0]) {
+		if !pin.verify(resps[0]) {
+			if pin.confirm {
+				return "", fmt.Errorf("incorrect password")
+			}
+
 			msg := fmt.Sprintf("Incorrect password (try %d of 3)", try+2)
 			if _, err := send(brw, "SETERROR", msg); err != nil {
 				return "", err
@@ -130,7 +176,7 @@ func ReadPasswordVerify(ctx context.Context, prompt string, verify func(string) 
 		break
 	}
 	if resp == "" {
-		return "", fmt.Errorf("too many retries")
+		return "", fmt.Errorf("could not read password")
 	}
 
 	if _, err := send(brw, "BYE"); err != nil {
