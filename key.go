@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,9 @@ func passKey(pass []byte, salt []byte) []byte {
 func cmdKey() *cli.Command {
 	cmd := &cli.Command{
 		Name: "key",
+
 		Subcommands: []*cli.Command{
+			cmdKeyGet(),
 			cmdKeyPut(),
 			cmdKeyDel(),
 		},
@@ -39,6 +42,7 @@ func cmdKey() *cli.Command {
 func cmdKeyPut() *cli.Command {
 	cmd := &cli.Command{
 		Name: "put",
+
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     flagKeyName,
@@ -116,6 +120,7 @@ func cmdKeyPut() *cli.Command {
 func cmdKeyDel() *cli.Command {
 	cmd := &cli.Command{
 		Name: "del",
+
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     flagKeyName,
@@ -144,6 +149,52 @@ func cmdKeyDel() *cli.Command {
 		err = st.KeyDel(ctx.Context, key.ID)
 		if err != nil {
 			return err
+		}
+
+		return nil
+	}
+
+	return cmd
+}
+
+func cmdKeyGet() *cli.Command {
+	cmd := &cli.Command{
+		Name: "get",
+
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name: flagKeyName,
+			},
+		},
+	}
+
+	cmd.Action = func(ctx *cli.Context) error {
+		st, err := store.New(ctx.Path(flagDB))
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+
+		var keys []*store.Key
+		if ctx.IsSet(flagKeyName) {
+			name := ctx.String(flagKeyName)
+			key, err := st.KeyFindName(ctx.Context, name)
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("key %q does not exist", name)
+			}
+			if err != nil {
+				return err
+			}
+			keys = append(keys, key)
+		} else {
+			keys, err = st.KeyList(ctx.Context)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, k := range keys {
+			fmt.Println(k.Name, base64.RawStdEncoding.EncodeToString(k.Public))
 		}
 
 		return nil

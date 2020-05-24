@@ -31,7 +31,7 @@ func (p *Pass) scan(row scanner) error {
 
 // PassList returns the list of passwords stored in the database.
 func (st *Store) PassList(ctx context.Context) ([]*Pass, error) {
-	query := `SELECT id, key_id, name, data FROM pass`
+	query := `SELECT id, key_id, name, data FROM pass ORDER BY id ASC`
 	rows, err := st.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func (st *Store) PassList(ctx context.Context) ([]*Pass, error) {
 // PassListKey returns the list of passwords encrypted with the given key
 // stored in the database.
 func (st *Store) PassListKey(ctx context.Context, keyID int64) ([]*Pass, error) {
-	query := `SELECT id, key_id, name, data FROM pass WHERE key_id = ?`
+	query := `SELECT id, key_id, name, data FROM pass WHERE key_id = ? ORDER BY id ASC`
 	rows, err := st.db.QueryContext(ctx, query, keyID)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (st *Store) PassListKey(ctx context.Context, keyID int64) ([]*Pass, error) 
 // PassListName returns the list of passwords with the given name stored in
 // the database.
 func (st *Store) PassListName(ctx context.Context, name string) ([]*Pass, error) {
-	query := `SELECT id, key_id, name, data FROM pass WHERE name = ?`
+	query := `SELECT id, key_id, name, data FROM pass WHERE name = ? ORDER BY id ASC`
 	rows, err := st.db.QueryContext(ctx, query, name)
 	if err != nil {
 		return nil, err
@@ -118,11 +118,11 @@ func (st *Store) PassFindID(ctx context.Context, id int64) (*Pass, error) {
 
 // PassPut inserts a new password into the database.
 func (st *Store) PassPut(ctx context.Context, p *Pass) (int64, error) {
-	query := `INSERT INTO pass (id, key_id, name, data) VALUES (?, ?, ?, ?)`
+	query := `INSERT INTO pass (key_id, name, data) VALUES (?, ?, ?)`
 
 	data64 := base64.RawStdEncoding.EncodeToString(p.Data)
 
-	res, err := st.db.ExecContext(ctx, query, p.ID, p.KeyID, p.Name, data64)
+	res, err := st.db.ExecContext(ctx, query, p.KeyID, p.Name, data64)
 	if err != nil {
 		return 0, err
 	}

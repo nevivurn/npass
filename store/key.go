@@ -35,7 +35,7 @@ func (k *Key) scan(row scanner) error {
 
 // KeyList returns the list of keys stored in the database.
 func (st *Store) KeyList(ctx context.Context) ([]*Key, error) {
-	query := `SELECT id, name, public, private FROM key`
+	query := `SELECT id, name, public, private FROM key ORDER BY id DESC`
 	rows, err := st.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
