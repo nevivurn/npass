@@ -34,7 +34,7 @@ func newApp() *cli.App {
 
 	cmd.Before = func(ctx *cli.Context) error {
 		if !ctx.IsSet("db") {
-			ctx.Set("db", filepath.Join(os.Getenv("HOME"), ".npass.db"))
+			return ctx.Set("db", filepath.Join(os.Getenv("HOME"), ".npass.db"))
 		}
 		return nil
 	}
