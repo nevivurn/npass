@@ -22,7 +22,9 @@ const (
 )
 
 func passKey(pass []byte, salt []byte) []byte {
-	return argon2.IDKey(pass, salt, 1, 6<<20, 8, 32)
+	// ref: https://www.ietf.org/id/draft-irtf-cfrg-argon2-10.txt section 4
+	// tuned for the author's machine
+	return argon2.IDKey(pass, salt, 1, 8<<20, 12, 32)
 }
 
 func cmdKey() *cli.Command {
