@@ -87,7 +87,7 @@ func New(name string) (*Store, error) {
 
 	query := `SELECT value FROM meta WHERE key = 'version'`
 	var version int
-	if err := db.QueryRow(query).Scan(version); err != nil {
+	if err := db.QueryRow(query).Scan(&version); err != nil {
 		return nil, err
 	}
 	if version != sqlVersion {
