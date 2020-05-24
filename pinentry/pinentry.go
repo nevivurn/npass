@@ -42,6 +42,9 @@ func ReadPassword(ctx context.Context) (string, error) {
 // ReadPasswordVerify reads a password from the user, using the given verify function
 // to retry.
 func ReadPasswordVerify(ctx context.Context, verify func(string) bool) (string, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	cmd, rw, err := execPinentry(ctx)
 	if err != nil {
 		return "", err
@@ -50,8 +53,8 @@ func ReadPasswordVerify(ctx context.Context, verify func(string) bool) (string, 
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	defer cmd.Wait()
-	defer rw.Close()
+	defer cmd.Wait() // nolint:errcheck // error checked on return, this is a fallback in case of errors
+	defer cancel()
 
 	brw := bufio.NewReadWriter(bufio.NewReader(rw), bufio.NewWriter(rw))
 
@@ -140,7 +143,6 @@ func send(rw *bufio.ReadWriter, cmd string, args ...string) ([]string, error) {
 		eargs[i] = url.PathEscape(arg)
 	}
 
-	fmt.Println(cmd, strings.Join(eargs, " "))
 	fmt.Fprintln(rw, cmd, strings.Join(eargs, " "))
 	if err := rw.Flush(); err != nil {
 		return nil, err
@@ -157,8 +159,6 @@ func readResponse(rw *bufio.ReadWriter) ([]string, error) {
 			return resp, err
 		}
 		rd = strings.TrimSuffix(rd, "\n")
-
-		fmt.Println(rd)
 
 		args := strings.SplitN(rd, " ", 2)
 		if len(args) < 1 {
