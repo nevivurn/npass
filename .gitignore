@@ -26,3 +26,4 @@
 
 # Ignore built binaries
 /npass
+/npass.db
