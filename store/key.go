@@ -35,7 +35,7 @@ func (k *Key) scan(row scanner) error {
 
 // KeyList returns the list of keys stored in the database.
 func (st *Store) KeyList(ctx context.Context) ([]*Key, error) {
-	query := `SELECT (id, name, public, private) FROM key`
+	query := `SELECT id, name, public, private FROM key`
 	rows, err := st.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (st *Store) KeyList(ctx context.Context) ([]*Key, error) {
 
 // KeyFindID finds the key identified by the given id.
 func (st *Store) KeyFindID(ctx context.Context, id int64) (*Key, error) {
-	query := `SELECT (id, name, public, private) FROM key WHERE id = ? LIMIT 1`
+	query := `SELECT id, name, public, private FROM key WHERE id = ? LIMIT 1`
 	row := st.db.QueryRowContext(ctx, query, id)
 
 	k := &Key{}
@@ -72,7 +72,7 @@ func (st *Store) KeyFindID(ctx context.Context, id int64) (*Key, error) {
 
 // KeyFindName finds the key identified by the given name.
 func (st *Store) KeyFindName(ctx context.Context, name string) (*Key, error) {
-	query := `SELECT (id, name, public, private) FROM key WHERE name = ? LIMIT 1`
+	query := `SELECT id, name, public, private FROM key WHERE name = ? LIMIT 1`
 	row := st.db.QueryRowContext(ctx, query, name)
 
 	k := &Key{}
@@ -85,7 +85,7 @@ func (st *Store) KeyFindName(ctx context.Context, name string) (*Key, error) {
 
 // KeyFindPublic finds the key identified by the given public key.
 func (st *Store) KeyFindPublic(ctx context.Context, public []byte) (*Key, error) {
-	query := `SELECT (id, name, public, private) FROM key WHERE public = ? LIMIT 1`
+	query := `SELECT id, name, public, private FROM key WHERE public = ? LIMIT 1`
 
 	qpub64 := base64.RawStdEncoding.EncodeToString(public)
 	row := st.db.QueryRowContext(ctx, query, qpub64)
@@ -100,12 +100,12 @@ func (st *Store) KeyFindPublic(ctx context.Context, public []byte) (*Key, error)
 
 // KeyPut inserts a new key into the database.
 func (st *Store) KeyPut(ctx context.Context, k *Key) (int64, error) {
-	query := `INSERT INTO key (id, name, public, private) VALUES (?, ?, ?, ?)`
+	query := `INSERT INTO key (name, public, private) VALUES (?, ?, ?)`
 
 	pub64 := base64.RawStdEncoding.EncodeToString(k.Public)
 	priv64 := base64.RawStdEncoding.EncodeToString(k.Private)
 
-	res, err := st.db.ExecContext(ctx, query, k.ID, k.Name, pub64, priv64)
+	res, err := st.db.ExecContext(ctx, query, k.Name, pub64, priv64)
 	if err != nil {
 		return 0, err
 	}

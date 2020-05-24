@@ -35,13 +35,13 @@ func execPinentry(ctx context.Context) (*exec.Cmd, io.ReadWriteCloser, error) {
 }
 
 // ReadPassword reads a password from the user.
-func ReadPassword(ctx context.Context) (string, error) {
-	return ReadPasswordVerify(ctx, func(string) bool { return true })
+func ReadPassword(ctx context.Context, prompt string) (string, error) {
+	return ReadPasswordVerify(ctx, prompt, func(string) bool { return true })
 }
 
 // ReadPasswordVerify reads a password from the user, using the given verify function
 // to retry.
-func ReadPasswordVerify(ctx context.Context, verify func(string) bool) (string, error) {
+func ReadPasswordVerify(ctx context.Context, prompt string, verify func(string) bool) (string, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -63,7 +63,10 @@ func ReadPasswordVerify(ctx context.Context, verify func(string) bool) (string, 
 		return "", err
 	}
 
-	if _, err := send(brw, "SETDESC", "Enter your password"); err != nil {
+	if prompt == "" {
+		prompt = "Enter password"
+	}
+	if _, err := send(brw, "SETDESC", prompt); err != nil {
 		return "", err
 	}
 	if _, err := send(brw, "SETPROMPT", "Password:"); err != nil {

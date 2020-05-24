@@ -10,6 +10,10 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+const (
+	flagDB = "db"
+)
+
 func main() {
 	if err := newApp().Run(os.Args); err != nil {
 		fmt.Println(err)
@@ -21,7 +25,7 @@ func newApp() *cli.App {
 	cmd := &cli.App{
 		Flags: []cli.Flag{
 			&cli.PathFlag{
-				Name:        "db",
+				Name:        flagDB,
 				EnvVars:     []string{"NPASS_DB"},
 				DefaultText: "~/.npass.db",
 			},
@@ -29,12 +33,13 @@ func newApp() *cli.App {
 
 		Commands: []*cli.Command{
 			cmdInit(),
+			cmdKey(),
 		},
 	}
 
 	cmd.Before = func(ctx *cli.Context) error {
-		if !ctx.IsSet("db") {
-			return ctx.Set("db", filepath.Join(os.Getenv("HOME"), ".npass.db"))
+		if !ctx.IsSet(flagDB) {
+			return ctx.Set(flagDB, filepath.Join(os.Getenv("HOME"), ".npass.db"))
 		}
 		return nil
 	}
@@ -48,7 +53,7 @@ func cmdInit() *cli.Command {
 	}
 
 	cmd.Action = func(ctx *cli.Context) error {
-		name := ctx.Path("db")
+		name := ctx.Path(flagDB)
 
 		_, err := os.Stat(name)
 		if !errors.Is(err, os.ErrNotExist) {

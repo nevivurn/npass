@@ -31,7 +31,7 @@ func (p *Pass) scan(row scanner) error {
 
 // PassList returns the list of passwords stored in the database.
 func (st *Store) PassList(ctx context.Context) ([]*Pass, error) {
-	query := `SELECT (id, key_id, name, data) FROM pass`
+	query := `SELECT id, key_id, name, data FROM pass`
 	rows, err := st.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func (st *Store) PassList(ctx context.Context) ([]*Pass, error) {
 // PassListKey returns the list of passwords encrypted with the given key
 // stored in the database.
 func (st *Store) PassListKey(ctx context.Context, keyID int64) ([]*Pass, error) {
-	query := `SELECT (id, key_id, name, data) FROM pass WHERE key_id = ?`
+	query := `SELECT id, key_id, name, data FROM pass WHERE key_id = ?`
 	rows, err := st.db.QueryContext(ctx, query, keyID)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (st *Store) PassListKey(ctx context.Context, keyID int64) ([]*Pass, error) 
 // PassListName returns the list of passwords with the given name stored in
 // the database.
 func (st *Store) PassListName(ctx context.Context, name string) ([]*Pass, error) {
-	query := `SELECT (id, key_id, name, data) FROM pass WHERE name = ?`
+	query := `SELECT id, key_id, name, data FROM pass WHERE name = ?`
 	rows, err := st.db.QueryContext(ctx, query, name)
 	if err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func (st *Store) PassListName(ctx context.Context, name string) ([]*Pass, error)
 
 // PassFindID finds the password identified by the given id.
 func (st *Store) PassFindID(ctx context.Context, id int64) (*Pass, error) {
-	query := `SELECT (id, key_id, name, data) FROM key WHERE id = ? LIMIT 1`
+	query := `SELECT id, key_id, name, data FROM key WHERE id = ? LIMIT 1`
 	row := st.db.QueryRowContext(ctx, query, id)
 
 	p := &Pass{}
