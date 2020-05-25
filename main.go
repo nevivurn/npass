@@ -34,6 +34,7 @@ func newApp() *cli.App {
 		Commands: []*cli.Command{
 			cmdInit(),
 			cmdKey(),
+			cmdPass(),
 		},
 	}
 

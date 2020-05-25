@@ -105,8 +105,21 @@ func (st *Store) PassListName(ctx context.Context, name string) ([]*Pass, error)
 
 // PassFindID finds the password identified by the given id.
 func (st *Store) PassFindID(ctx context.Context, id int64) (*Pass, error) {
-	query := `SELECT id, key_id, name, data FROM key WHERE id = ? LIMIT 1`
+	query := `SELECT id, key_id, name, data FROM pass WHERE id = ? LIMIT 1`
 	row := st.db.QueryRowContext(ctx, query, id)
+
+	p := &Pass{}
+	if err := p.scan(row); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+// PassFindKeyName finds the password identified by the key id and name.
+func (st *Store) PassFindKeyName(ctx context.Context, keyID int64, name string) (*Pass, error) {
+	query := `SELECT id, key_id, name, data FROM pass WHERE key_id = ? AND name = ? LIMIT 1`
+	row := st.db.QueryRowContext(ctx, query, keyID, name)
 
 	p := &Pass{}
 	if err := p.scan(row); err != nil {

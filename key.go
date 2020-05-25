@@ -24,7 +24,7 @@ const (
 func passKey(pass []byte, salt []byte) []byte {
 	// ref: https://www.ietf.org/id/draft-irtf-cfrg-argon2-10.txt section 4
 	// tuned for the author's machine
-	return argon2.IDKey(pass, salt, 1, 8<<20, 12, 32)
+	return argon2.IDKey(pass, salt, 1, 6<<20, 12, 32)
 }
 
 func cmdKey() *cli.Command {
@@ -89,9 +89,8 @@ func cmdKeyPut() *cli.Command {
 			return err
 		}
 
-		key := passKey([]byte(pass), salt)
-		keyArr := [32]byte{}
-		copy(keyArr[:], key)
+		var keyArr [32]byte
+		copy(keyArr[:], passKey([]byte(pass), salt))
 
 		privEnc := secretbox.Seal(salt, priv[:], &[24]byte{}, &keyArr)
 
