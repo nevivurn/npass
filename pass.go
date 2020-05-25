@@ -65,6 +65,7 @@ func cmdPass() *cli.Command {
 
 		Subcommands: []*cli.Command{
 			cmdPassPut(),
+			cmdPassGet(),
 		},
 	}
 
@@ -134,6 +135,66 @@ func cmdPassPut() *cli.Command {
 			Data:  passEnc,
 		})
 
+		return nil
+	}
+
+	return cmd
+}
+
+func cmdPassGet() *cli.Command {
+	cmd := &cli.Command{
+		Name: "get",
+
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     flagPassName,
+				Required: true,
+			},
+		},
+	}
+
+	cmd.Action = func(ctx *cli.Context) error {
+		st, err := store.New(ctx.Path(flagDB))
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+
+		key, err := st.KeyFindName(ctx.Context, ctx.String(flagPassKey))
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("key %q does not exist", ctx.String(flagPassKey))
+		}
+		if err != nil {
+			return err
+		}
+
+		name := ctx.String(flagPassName)
+
+		pass, err := st.PassFindKeyName(ctx.Context, key.ID, name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("pass %q does not exist for key %q", ctx.String(flagPassKey), key.Name)
+		}
+		if err != nil {
+			return err
+		}
+
+		priv, err := getDecryptedKey(ctx.Context, key)
+		if err != nil {
+			return err
+		}
+
+		var pub [32]byte
+		if len(key.Public) != len(pub) {
+			return fmt.Errorf("invalid key data in database")
+		}
+		copy(pub[:], key.Public)
+
+		data, ok := box.OpenAnonymous(nil, pass.Data, &pub, priv)
+		if !ok {
+			return fmt.Errorf("invalid pass data in database")
+		}
+
+		fmt.Fprintln(ctx.App.Writer, string(data))
 		return nil
 	}
 
