@@ -31,7 +31,7 @@ func (p *Pass) scan(row scanner) error {
 
 // PassList returns the list of passwords stored in the database.
 func (st *Store) PassList(ctx context.Context) ([]*Pass, error) {
-	query := `SELECT id, key_id, name, data FROM pass ORDER BY id ASC`
+	query := `SELECT id, key_id, name, data FROM pass ORDER BY key_id ASC, id ASC`
 	rows, err := st.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err

@@ -65,8 +65,9 @@ func cmdPass() *cli.Command {
 
 		Subcommands: []*cli.Command{
 			cmdPassPut(),
-			cmdPassGet(),
 			cmdPassDel(),
+			cmdPassList(),
+			cmdPassGet(),
 		},
 	}
 
@@ -184,6 +185,42 @@ func cmdPassDel() *cli.Command {
 			return err
 		}
 
+		return nil
+	}
+
+	return cmd
+}
+
+func cmdPassList() *cli.Command {
+	cmd := &cli.Command{
+		Name: "list",
+	}
+
+	cmd.Action = func(ctx *cli.Context) error {
+		st, err := store.New(ctx.Path(flagDB))
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+
+		keys, err := st.KeyList(ctx.Context)
+		if err != nil {
+			return err
+		}
+
+		kids := make(map[int64]string, len(keys))
+		for _, k := range keys {
+			kids[k.ID] = k.Name
+		}
+
+		pass, err := st.PassList(ctx.Context)
+		if err != nil {
+			return err
+		}
+
+		for _, p := range pass {
+			fmt.Printf("%s/%s\n", kids[p.KeyID], p.Name)
+		}
 		return nil
 	}
 
