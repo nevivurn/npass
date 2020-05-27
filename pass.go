@@ -131,11 +131,14 @@ func cmdPassPut() *cli.Command {
 			return err
 		}
 
-		st.PassPut(ctx.Context, &store.Pass{
+		_, err = st.PassPut(ctx.Context, &store.Pass{
 			KeyID: key.ID,
 			Name:  name,
 			Data:  passEnc,
 		})
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}
