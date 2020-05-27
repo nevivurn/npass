@@ -34,6 +34,7 @@ func cmdKey() *cli.Command {
 		Subcommands: []*cli.Command{
 			cmdKeyPut(),
 			cmdKeyDel(),
+			cmdKeyList(),
 			cmdKeyGet(),
 		},
 	}
@@ -149,13 +150,41 @@ func cmdKeyDel() *cli.Command {
 	return cmd
 }
 
+func cmdKeyList() *cli.Command {
+	cmd := &cli.Command{
+		Name: "list",
+	}
+
+	cmd.Action = func(ctx *cli.Context) error {
+		st, err := store.New(ctx.Path(flagDB))
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+
+		keys, err := st.KeyList(ctx.Context)
+		if err != nil {
+			return err
+		}
+
+		for _, k := range keys {
+			fmt.Printf("%s: %s\n", k.Name, base64.RawStdEncoding.EncodeToString(k.Public))
+		}
+
+		return nil
+	}
+
+	return cmd
+}
+
 func cmdKeyGet() *cli.Command {
 	cmd := &cli.Command{
 		Name: "get",
 
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name: flagKeyName,
+				Name:     flagKeyName,
+				Required: true,
 			},
 		},
 	}
@@ -167,27 +196,16 @@ func cmdKeyGet() *cli.Command {
 		}
 		defer st.Close()
 
-		var keys []*store.Key
-		if ctx.IsSet(flagKeyName) {
-			name := ctx.String(flagKeyName)
-			key, err := st.KeyFindName(ctx.Context, name)
-			if errors.Is(err, sql.ErrNoRows) {
-				return fmt.Errorf("key %q does not exist", name)
-			}
-			if err != nil {
-				return err
-			}
-			keys = append(keys, key)
-		} else {
-			keys, err = st.KeyList(ctx.Context)
-			if err != nil {
-				return err
-			}
+		name := ctx.String(flagKeyName)
+		key, err := st.KeyFindName(ctx.Context, name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("key %q does not exist", name)
+		}
+		if err != nil {
+			return err
 		}
 
-		for _, k := range keys {
-			fmt.Println(k.Name, base64.RawStdEncoding.EncodeToString(k.Public))
-		}
+		fmt.Println(base64.RawStdEncoding.EncodeToString(key.Public))
 
 		return nil
 	}
