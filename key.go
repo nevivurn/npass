@@ -32,9 +32,9 @@ func cmdKey() *cli.Command {
 		Name: "key",
 
 		Subcommands: []*cli.Command{
-			cmdKeyGet(),
 			cmdKeyPut(),
 			cmdKeyDel(),
+			cmdKeyGet(),
 		},
 	}
 

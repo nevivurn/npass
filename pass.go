@@ -66,6 +66,7 @@ func cmdPass() *cli.Command {
 		Subcommands: []*cli.Command{
 			cmdPassPut(),
 			cmdPassGet(),
+			cmdPassDel(),
 		},
 	}
 
@@ -134,6 +135,54 @@ func cmdPassPut() *cli.Command {
 			Name:  name,
 			Data:  passEnc,
 		})
+
+		return nil
+	}
+
+	return cmd
+}
+
+func cmdPassDel() *cli.Command {
+	cmd := &cli.Command{
+		Name: "del",
+
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     flagPassName,
+				Required: true,
+			},
+		},
+	}
+
+	cmd.Action = func(ctx *cli.Context) error {
+		st, err := store.New(ctx.Path(flagDB))
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+
+		key, err := st.KeyFindName(ctx.Context, ctx.String(flagPassKey))
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("key %q does not exist", ctx.String(flagPassKey))
+		}
+		if err != nil {
+			return err
+		}
+
+		name := ctx.String(flagPassName)
+
+		pass, err := st.PassFindKeyName(ctx.Context, key.ID, name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("pass %q does not exist for key %q", name, ctx.String(flagPassKey))
+		}
+		if err != nil {
+			return err
+		}
+
+		err = st.PassDel(ctx.Context, pass.ID)
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}
