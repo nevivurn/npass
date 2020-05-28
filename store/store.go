@@ -13,23 +13,14 @@ type scanner interface {
 	Scan(...interface{}) error
 }
 
-const (
-	sqlVersion = 1
-	sqlSchema  = `
-CREATE TABLE meta (
-	key	TEXT	PRIMARY KEY NOT NULL,
-	value	BLOB	NOT NULL
-);
-INSERT INTO meta (key, value) VALUES('version', 1);
-
-CREATE TABLE key (
+const sqlSchema = `
+CREATE TABLE IF NOT EXISTS key (
 	id	INTEGER	PRIMARY KEY NOT NULL,
 	name	TEXT	NOT NULL UNIQUE,
 	public	TEXT	NOT NULL UNIQUE,
-	private	TEXT
-);
+	private	TEXT);
 
-CREATE TABLE pass (
+CREATE TABLE IF NOT EXISTS pass (
 	id	INTEGER	PRIMARY KEY NOT NULL,
 	key_id	INTEGER	NOT NULL REFERENCES key(id),
 	name	TEXT	NOT NULL,
@@ -37,26 +28,18 @@ CREATE TABLE pass (
 	UNIQUE	(key_id, name)
 );
 `
-)
 
 // Store is the password database.
 type Store struct {
 	db *sql.DB
 }
 
-func openDB(name string, create bool) (*sql.DB, error) {
-	q := url.Values{
+func openDB(name string) (*sql.DB, error) {
+	dsn := fmt.Sprintf("file:%s?%s", name, url.Values{
 		"cache":          []string{"shared"},
 		"_foreign_keys":  []string{"1"},
 		"_secure_delete": []string{"1"},
-	}
-	if create {
-		q.Set("mode", "rwc")
-	} else {
-		q.Set("mode", "rw")
-	}
-
-	dsn := fmt.Sprintf("file:%s?%s", name, q.Encode())
+	})
 
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
@@ -67,34 +50,15 @@ func openDB(name string, create bool) (*sql.DB, error) {
 	return db, nil
 }
 
-// NewInit creates a new store and initializes the DB schema.
-func NewInit(name string) (*Store, error) {
-	db, err := openDB(name, true)
+// New creates a new store backed by the given database.
+func New(name string) (*Store, error) {
+	db, err := openDB(name)
 	if err != nil {
 		return nil, err
 	}
 
 	if _, err := db.Exec(sqlSchema); err != nil {
 		return nil, err
-	}
-
-	return &Store{db: db}, nil
-}
-
-// New creates a new store backed by the given database.
-func New(name string) (*Store, error) {
-	db, err := openDB(name, false)
-	if err != nil {
-		return nil, err
-	}
-
-	query := `SELECT value FROM meta WHERE key = 'version'`
-	var version int
-	if err := db.QueryRow(query).Scan(&version); err != nil {
-		return nil, err
-	}
-	if version != sqlVersion {
-		return nil, fmt.Errorf("invalid database version: want %d, got %d", sqlVersion, version)
 	}
 
 	return &Store{db: db}, nil
