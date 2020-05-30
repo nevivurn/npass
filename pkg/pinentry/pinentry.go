@@ -1,3 +1,4 @@
+// Package pinentry provides an interface to the pinentry utility.
 package pinentry
 
 import (
