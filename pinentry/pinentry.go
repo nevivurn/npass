@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
-	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,38 +11,17 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-type pinentry struct {
-	prompt  string
-	confirm bool
-	verify  func(string) bool
-}
-
-// Option is used to configure pinentry.
-type Option func(*pinentry)
-
-// Prompt sets the password prompt.
-func Prompt(prompt string) Option {
-	return func(pin *pinentry) {
-		pin.prompt = prompt
+func execPinentry(ctx context.Context) (*exec.Cmd, *bufio.ReadWriter, error) {
+	var cmd *exec.Cmd
+	if terminal.IsTerminal(int(os.Stdin.Fd())) {
+		tty, err := recurReadlink(os.Stdin.Name())
+		if err != nil {
+			return nil, nil, fmt.Errorf("pinentry: could not find tty")
+		}
+		cmd = exec.CommandContext(ctx, "pinentry", "--ttyname", tty)
+	} else {
+		cmd = exec.CommandContext(ctx, "pinentry")
 	}
-}
-
-// Confirm makes the user confirm their password.
-func Confirm() Option {
-	return func(pin *pinentry) {
-		pin.confirm = true
-	}
-}
-
-// Verify specifies the function to check whether the password is correct..
-func Verify(f func(string) bool) Option {
-	return func(pin *pinentry) {
-		pin.verify = f
-	}
-}
-
-func execPinentry(ctx context.Context) (*exec.Cmd, io.ReadWriteCloser, error) {
-	cmd := exec.CommandContext(ctx, "pinentry")
 
 	w, err := cmd.StdinPipe()
 	if err != nil {
@@ -56,179 +33,270 @@ func execPinentry(ctx context.Context) (*exec.Cmd, io.ReadWriteCloser, error) {
 		return nil, nil, err
 	}
 
-	rwc := struct {
-		io.Reader
-		io.WriteCloser
-	}{r, w}
+	if err := cmd.Start(); err != nil {
+		return nil, nil, err
+	}
 
-	return cmd, rwc, nil
+	rw := bufio.NewReadWriter(
+		bufio.NewReader(r),
+		bufio.NewWriter(w),
+	)
+	return cmd, rw, nil
 }
 
-// ReadPassword reads a password from the user.
-func ReadPassword(ctx context.Context, opts ...Option) (string, error) {
-	pin := pinentry{
-		prompt:  "Enter your password",
-		confirm: false,
-		verify:  func(string) bool { return true },
-	}
-	for _, opt := range opts {
-		opt(&pin)
-	}
-
+// Confirm displays a confirmation dialog to the user.
+func Confirm(ctx context.Context, prompt string) (bool, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	cmd, rw, err := execPinentry(ctx)
+	if err != nil {
+		cancel()
+		return false, err
+	}
+	defer cancel()
+
+	ok, err := confirm(rw, prompt)
+	if err != nil {
+		return false, err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
+func confirm(rw *bufio.ReadWriter, prompt string) (bool, error) {
+	// Skip initial OK
+	if _, err := recv(rw); err != nil {
+		return false, err
+	}
+
+	if err := send(rw, "SETDESC", prompt); err != nil {
+		return false, err
+	}
+	if _, err := recv(rw); err != nil {
+		return false, err
+	}
+
+	if err := send(rw, "CONFIRM"); err != nil {
+		return false, err
+	}
+	_, err := recv(rw)
+
+	ok := false
+	if err != nil && !strings.Contains(err.Error(), "Operation cancelled") {
+		return false, err
+	}
+	if err == nil {
+		ok = true
+	}
+
+	if err := send(rw, "BYE"); err != nil {
+		return false, err
+	}
+	if _, err := recv(rw); err != nil {
+		return false, err
+	}
+
+	return ok, nil
+}
+
+// NewPass displays a new password creation dialogue.
+func NewPass(ctx context.Context, prompt string) (string, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
+	cmd, rw, err := execPinentry(ctx)
+	if err != nil {
+		cancel()
+		return "", err
+	}
+	defer cancel()
+
+	pass, err := newPass(rw, prompt)
 	if err != nil {
 		return "", err
 	}
 
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Wait(); err != nil {
 		return "", err
 	}
-	defer cmd.Wait() // nolint:errcheck // error checked on return, this is a fallback in case of errors
+	return pass, nil
+}
+
+func newPass(rw *bufio.ReadWriter, prompt string) (string, error) {
+	// Skip initial OK
+	if _, err := recv(rw); err != nil {
+		return "", err
+	}
+
+	if err := send(rw, "SETDESC", prompt); err != nil {
+		return "", err
+	}
+	if _, err := recv(rw); err != nil {
+		return "", err
+	}
+
+	if err := send(rw, "SETPROMPT", "Password:"); err != nil {
+		return "", err
+	}
+	if _, err := recv(rw); err != nil {
+		return "", err
+	}
+
+	if err := send(rw, "SETREPEATERROR", "Passwords do not match"); err != nil {
+		return "", err
+	}
+	if _, err := recv(rw); err != nil {
+		return "", err
+	}
+
+	var pass string
+	for retry := 3; retry > 0; retry-- {
+		if err := send(rw, "SETREPEAT"); err != nil {
+			return "", err
+		}
+		if _, err := recv(rw); err != nil {
+			return "", err
+		}
+
+		if err := send(rw, "GETPIN"); err != nil {
+			return "", err
+		}
+
+		var err error
+		pass, err = recv(rw)
+		if err != nil {
+			return "", err
+		}
+		if pass != "" {
+			break
+		}
+
+		if err := send(rw, "SETERROR", "The password may not be empty"); err != nil {
+			return "", err
+		}
+		if _, err := recv(rw); err != nil {
+			return "", err
+		}
+	}
+
+	var err error
+	if pass == "" {
+		err = fmt.Errorf("pinentry: too many retries")
+	}
+
+	if err := send(rw, "BYE"); err != nil {
+		return "", err
+	}
+	if _, err := recv(rw); err != nil {
+		return "", err
+	}
+
+	return pass, err
+}
+
+// AskPass displays a password entry dialogue.
+func AskPass(ctx context.Context, prompt string, verify func(string) bool) (string, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
+	cmd, rw, err := execPinentry(ctx)
+	if err != nil {
+		cancel()
+		return "", err
+	}
 	defer cancel()
 
-	brw := bufio.NewReadWriter(bufio.NewReader(rw), bufio.NewWriter(rw))
-
-	// skip initial OK
-	if _, err := readResponse(brw); err != nil {
+	pass, err := askPass(rw, prompt, verify)
+	if err != nil {
 		return "", err
 	}
 
-	if _, err := send(brw, "SETDESC", pin.prompt); err != nil {
+	if err := cmd.Wait(); err != nil {
 		return "", err
 	}
-	if _, err := send(brw, "SETPROMPT", "Password:"); err != nil {
+	return pass, nil
+}
+
+func askPass(rw *bufio.ReadWriter, prompt string, verify func(string) bool) (string, error) {
+	// Skip initial OK
+	if _, err := recv(rw); err != nil {
 		return "", err
 	}
-	if pin.confirm {
-		if _, err := send(brw, "SETREPEAT", "Confirm:"); err != nil {
-			return "", err
-		}
-		if _, err := send(brw, "SETREPEATERROR", "Passwords do not match"); err != nil {
-			return "", err
-		}
+
+	if err := send(rw, "SETDESC", prompt); err != nil {
+		return "", err
+	}
+	if _, err := recv(rw); err != nil {
+		return "", err
 	}
 
-	// allow running with pinentry-curses
-	if terminal.IsTerminal(int(os.Stdin.Fd())) {
-		tty := os.Stdin.Name()
-		// resolve symlink
-		for {
-			fi, err := os.Lstat(tty)
-			if err != nil {
-				return "", err
-			}
-
-			if fi.Mode()&os.ModeSymlink != os.ModeSymlink {
-				break
-			}
-
-			tty, err = os.Readlink(tty)
-			if err != nil {
-				return "", err
-			}
-		}
-
-		// pinentry does not seem to accept percent-encoding here
-		fmt.Fprintf(brw, "OPTION ttyname=%s\n", tty)
-		if err := brw.Flush(); err != nil {
-			return "", err
-		}
-		if _, err := readResponse(brw); err != nil {
-			return "", err
-		}
+	if err := send(rw, "SETPROMPT", "Password:"); err != nil {
+		return "", err
+	}
+	if _, err := recv(rw); err != nil {
+		return "", err
 	}
 
-	var resp string
-	for try := 0; try < 3; try++ {
-		resps, err := send(brw, "GETPIN")
+	var (
+		pass string
+		ok   bool
+	)
+	for retry := 3; retry > 0; retry-- {
+		if err := send(rw, "GETPIN"); err != nil {
+			return "", err
+		}
+
+		var err error
+		pass, err = recv(rw)
 		if err != nil {
 			return "", err
 		}
-
-		if len(resps) == 0 {
-			if pin.confirm {
-				break
-			}
-
-			msg := fmt.Sprintf("Password may not be empty (try %d of 3)", try+2)
-			if _, err := send(brw, "SETERROR", msg); err != nil {
-				return "", err
-			}
-			continue
+		if ok = verify(pass); ok {
+			break
 		}
 
-		if !pin.verify(resps[0]) {
-			if pin.confirm {
-				return "", fmt.Errorf("incorrect password")
-			}
-
-			msg := fmt.Sprintf("Incorrect password (try %d of 3)", try+2)
-			if _, err := send(brw, "SETERROR", msg); err != nil {
-				return "", err
-			}
-			continue
+		if err := send(rw, "SETERROR", "Incorrect password"); err != nil {
+			return "", err
 		}
-
-		resp = resps[0]
-		break
-	}
-	if resp == "" {
-		return "", fmt.Errorf("could not read password")
+		if _, err := recv(rw); err != nil {
+			return "", err
+		}
 	}
 
-	if _, err := send(brw, "BYE"); err != nil {
+	var err error
+	if !ok {
+		err = fmt.Errorf("pinentry: too many retries")
+	}
+
+	if err := send(rw, "BYE"); err != nil {
+		return "", err
+	}
+	if _, err := recv(rw); err != nil {
 		return "", err
 	}
 
-	return resp, cmd.Wait()
+	if err != nil {
+		return "", err
+	}
+	return pass, nil
 }
 
-func send(rw *bufio.ReadWriter, cmd string, args ...string) ([]string, error) {
-	eargs := make([]string, len(args))
-	for i, arg := range args {
-		eargs[i] = url.PathEscape(arg)
-	}
-
-	fmt.Fprintln(rw, cmd, strings.Join(eargs, " "))
-	if err := rw.Flush(); err != nil {
-		return nil, err
-	}
-
-	return readResponse(rw)
-}
-
-func readResponse(rw *bufio.ReadWriter) ([]string, error) {
-	resp := []string{}
+func recurReadlink(name string) (string, error) {
 	for {
-		rd, err := rw.ReadString('\n')
+		fi, err := os.Lstat(name)
 		if err != nil {
-			return resp, err
+			return "", err
 		}
-		rd = strings.TrimSuffix(rd, "\n")
-
-		args := strings.SplitN(rd, " ", 2)
-		if len(args) < 1 {
-			return resp, fmt.Errorf("invalid data from pinentry")
+		if fi.Mode()&os.ModeSymlink != os.ModeSymlink {
+			break
 		}
 
-		for i, arg := range args[1:] {
-			args[1+i], err = url.PathUnescape(arg)
-			if err != nil {
-				return resp, fmt.Errorf("invalid data from pinentry: %w", err)
-			}
-		}
-
-		switch args[0] {
-		case "OK":
-			return resp, nil
-		case "ERR":
-			return resp, fmt.Errorf("pinentry error: %s", strings.Join(args[1:], ""))
-		case "D":
-			resp = append(resp, args[1:]...)
-		case "#":
+		name, err = os.Readlink(name)
+		if err != nil {
+			return "", err
 		}
 	}
+
+	return name, nil
 }
