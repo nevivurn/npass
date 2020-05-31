@@ -2,60 +2,31 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
-
-	"github.com/urfave/cli/v2"
-)
-
-var (
-	version string
-	cliApp  = &cli.App{
-		Name: "npass",
-
-		Usage:   "A multi-device password manager",
-		Version: version,
-
-		Writer:    os.Stdout,
-		ErrWriter: os.Stderr,
-
-		UseShortOptionHandling: true,
-		Flags: []cli.Flag{
-			&cli.PathFlag{
-				Name:    "db",
-				Aliases: []string{"d"},
-
-				Usage: "path to the npass database",
-
-				EnvVars:     []string{"NPASS_DB"},
-				DefaultText: "~/.npass.db",
-			},
-		},
-		// Open DB and set ctxStore, close on exit.
-		Before: flagStoreBefore,
-		After:  flagStoreAfter,
-
-		Commands: []*cli.Command{
-			cmdNew,
-			//cmdShow,
-			//cmdRm,
-		},
-	}
+	"path/filepath"
 )
 
 func main() {
 	ctx := context.Background()
-	ctx, cancel := withInterrupt(ctx)
+	ctx, cancel := withShutdown(ctx)
 	defer cancel()
 
-	err := cliApp.RunContext(ctx, os.Args)
+	a, err := newApp(ctx)
 	if err != nil {
-		cancel()
+		fmt.Fprintf(os.Stderr, "%s: %s\n", filepath.Base(os.Args[0]), err)
+		os.Exit(1)
+	}
+	defer a.Close()
+
+	if err := a.run(ctx, os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", filepath.Base(os.Args[0]), err)
 		os.Exit(1)
 	}
 }
 
-func withInterrupt(ctx context.Context) (context.Context, context.CancelFunc) {
+func withShutdown(ctx context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	die := make(chan os.Signal, 1)
@@ -63,8 +34,8 @@ func withInterrupt(ctx context.Context) (context.Context, context.CancelFunc) {
 
 	go func() {
 		select {
-		case <-ctx.Done():
 		case <-die:
+		case <-ctx.Done():
 		}
 		cancel()
 		signal.Stop(die)
