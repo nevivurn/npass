@@ -6,13 +6,16 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/nevivurn/npass/pkg/pinentry"
 )
 
 const envDBKey = "NPASS_DB"
 
 type app struct {
-	w  io.Writer
-	st store
+	w   io.Writer
+	st  store
+	pin pinentry.Pinentry
 }
 
 func newApp(ctx context.Context) (*app, error) {
@@ -42,6 +45,8 @@ func newApp(ctx context.Context) (*app, error) {
 		fmt.Fprintf(a.w, "Initialized new db at %s\n", db)
 	}
 
+	a.pin = pinentry.External
+
 	return a, nil
 }
 
@@ -50,16 +55,5 @@ func (a *app) Close() error {
 }
 
 func (a *app) run(ctx context.Context, args []string) error {
-	return runMap{
-		"new":  runFunc(a.cmdNew),
-		"show": runFunc(a.cmdShow),
-	}.run(ctx, args)
-}
-
-func (a *app) cmdNew(ctx context.Context, args []string) error {
-	return nil
-}
-
-func (a *app) cmdShow(ctx context.Context, args []string) error {
-	return nil
+	return runMap{}.run(ctx, args)
 }

@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/nevivurn/npass/pkg/pinentry"
 )
 
 func TestNewApp(t *testing.T) {
@@ -54,6 +57,10 @@ func TestNewApp(t *testing.T) {
 	if !ok {
 		t.Errorf("checkSchema() = %t; want %t", ok, true)
 	}
+
+	if a.pin != pinentry.External {
+		t.Errorf("a.pin = %#v; want %#v", a.pin, pinentry.External)
+	}
 }
 
 func TestNewAppDefault(t *testing.T) {
@@ -95,4 +102,29 @@ func TestNewAppDefault(t *testing.T) {
 	if !ok {
 		t.Errorf("checkSchema() = %t; want %t", ok, true)
 	}
+}
+
+type testPinentry struct {
+	confirm bool
+	pass    string
+	err     error
+}
+
+func (tp testPinentry) Confirm(context.Context, string) (bool, error) {
+	return tp.confirm, tp.err
+}
+func (tp testPinentry) NewPass(context.Context, string) (string, error) {
+	return tp.pass, tp.err
+}
+func (tp testPinentry) AskPass(context.Context, string, func(string) bool) (string, error) {
+	return tp.pass, tp.err
+}
+
+func testNewApp(t *testing.T, pin pinentry.Pinentry) (*app, *bytes.Buffer) {
+	buf := &bytes.Buffer{}
+	return &app{
+		w:   buf,
+		st:  testStore(t),
+		pin: pin,
+	}, buf
 }
