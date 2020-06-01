@@ -121,10 +121,19 @@ func (tp testPinentry) AskPass(context.Context, string, func(string) bool) (stri
 }
 
 func testNewApp(t *testing.T, pin pinentry.Pinentry) (*app, *bytes.Buffer) {
+	fastKDF = true
+	t.Cleanup(func() { fastKDF = false })
+
 	buf := &bytes.Buffer{}
+
+	st := testStore(t)
+	if err := st.initSchema(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	return &app{
 		w:   buf,
-		st:  testStore(t),
+		st:  st,
 		pin: pin,
 	}, buf
 }
