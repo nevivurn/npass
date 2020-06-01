@@ -2,8 +2,22 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+
+	"golang.org/x/crypto/argon2"
 )
+
+// Whether to speed up KDF (for tests).
+var fastKDF = false
+
+func passKey(pass string, salt []byte) []byte {
+	if fastKDF {
+		fmt.Println("WARNING: running with unsafe parameters")
+		return argon2.IDKey([]byte(pass), salt, 1, 32, 1, 32)
+	}
+	return argon2.IDKey([]byte(pass), salt, 1, 6<<20, 8, 32)
+}
 
 // Charsets allowed inside identifiers.
 const (

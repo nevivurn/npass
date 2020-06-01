@@ -1,6 +1,56 @@
 package main
 
-import "testing"
+import (
+	"encoding/hex"
+	"reflect"
+	"testing"
+)
+
+func TestPassKey(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	got := passKey(
+		"0123456789abcdef",
+		[]byte("0123456789abcdef"),
+	)
+	// Obtained with argon2-cffi python library
+	want, _ := hex.DecodeString("324fc34ab73bd55a748fbe25dc4c122080fa968c82ac0b19ee67285993fa64eb")
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("passKey() = %v; want %v", got, want)
+	}
+}
+
+func TestPassKeyFast(t *testing.T) {
+	fastKDF = true
+	defer func() { fastKDF = false }()
+
+	got := passKey(
+		"0123456789abcdef",
+		[]byte("0123456789abcdef"),
+	)
+	// Obtained with argon2-cffi python library
+	want, _ := hex.DecodeString("92c2708b3e6e914ce3a440f0e2851318c5c400edb0b2c3689d42a1b60f9bdf51")
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("passKey() = %v; want %v", got, want)
+	}
+}
+
+func BenchmarkPassKey(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping benchmark in short mode")
+	}
+	b.ReportAllocs()
+
+	pass := "0123456789abcdef"
+	salt := []byte("0123456789abcdef")
+	for i := 0; i < b.N; i++ {
+		passKey(pass, salt)
+	}
+}
 
 func TestParseIdentifier(t *testing.T) {
 	type testCase struct {
