@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
-var errUsage = fmt.Errorf("incorrect usage")
+var errUsage = errors.New("incorrect usage")
 
 type runner interface {
 	run(context.Context, []string) error
