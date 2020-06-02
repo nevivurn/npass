@@ -1,7 +1,6 @@
 BIN := npass
 
-GIT_VERSION := $(shell git describe --always --dirty)
-GO_LDFLAGS := -s -w -X 'main.version=$(GIT_VERSION)'
+GO_LDFLAGS := -s -w
 GO_FLAGS := -v -trimpath -ldflags '$(GO_LDFLAGS)'
 
 .PHONY: all
@@ -24,4 +23,5 @@ test:
 
 .PHONY: clean
 clean:
-	go clean -x
+	go clean -x ./...
+	rm -f npass
