@@ -17,6 +17,15 @@ func TestNewApp(t *testing.T) {
 	os.Setenv(envDBKey, ":memory:")
 	defer func() { os.Setenv(envDBKey, oldEnv) }()
 
+	oldStdin := os.Stdin
+	discard, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0777)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer discard.Close()
+	os.Stdin = discard
+	defer func() { os.Stdin = oldStdin }()
+
 	// Capture output for initialization message
 	oldStdout := os.Stdout
 	tmpOut, err := ioutil.TempFile("", "npass-test-*")
@@ -34,8 +43,12 @@ func TestNewApp(t *testing.T) {
 	}
 	defer a.Close()
 
+	if a.r != discard {
+		t.Errorf("a.r = %#v; want %#v", a.r, discard)
+	}
+
 	if a.w != tmpOut {
-		t.Errorf("a.w = %#v; want %#v", a.w, os.Stdout)
+		t.Errorf("a.w = %#v; want %#v", a.w, tmpOut)
 	}
 
 	_, err = tmpOut.Seek(0, io.SeekStart)

@@ -13,13 +13,17 @@ import (
 const envDBKey = "NPASS_DB"
 
 type app struct {
+	r   io.Reader
 	w   io.Writer
 	st  store
 	pin pinentry.Pinentry
 }
 
 func newApp(ctx context.Context) (*app, error) {
-	a := &app{w: os.Stdout}
+	a := &app{
+		r: os.Stdin,
+		w: os.Stdout,
+	}
 
 	db := os.Getenv(envDBKey)
 	if db == "" {
