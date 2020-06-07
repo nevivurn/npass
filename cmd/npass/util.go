@@ -27,6 +27,10 @@ const (
 	charsetAlpha   = charsetLower + charsetUpper
 	charsetAlnum   = charsetAlpha + charsetNumber
 	charsetSpecial = "!-./?@"
+
+	charsetKey  = charsetLower + charsetNumber + "-"
+	charsetName = charsetAlnum + charsetSpecial
+	charsetType = charsetLower + "-"
 )
 
 var errIdentifier = errors.New("invalid pass identifier")
@@ -35,21 +39,21 @@ func parseIdentifier(id string) (key, name, typ string, err error) {
 	split := strings.SplitN(id, ":", 3)
 
 	if len(split) >= 1 {
-		if len(split[0]) == 0 || !containsOnly(split[0], charsetLower) {
+		if len(split[0]) == 0 || !containsOnly(split[0], charsetKey) {
 			err = errIdentifier
 			return "", "", "", err
 		}
 		key = split[0]
 	}
 	if len(split) >= 2 {
-		if len(split[1]) == 0 || !containsOnly(split[1], charsetAlnum+charsetSpecial) {
+		if len(split[1]) == 0 || !containsOnly(split[1], charsetName) {
 			err = errIdentifier
 			return "", "", "", err
 		}
 		name = split[1]
 	}
 	if len(split) >= 3 {
-		if len(split[2]) == 0 || !containsOnly(split[2], charsetLower) {
+		if len(split[2]) == 0 || !containsOnly(split[2], charsetType) {
 			err = errIdentifier
 			return "", "", "", err
 		}

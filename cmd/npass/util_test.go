@@ -62,6 +62,10 @@ func TestParseIdentifier(t *testing.T) {
 		"key:name":     {"key", "name", "", nil},
 		"key:name:typ": {"key", "name", "typ", nil},
 
+		"key-1":              {"key-1", "", "", nil},
+		"key-1:name-1!":      {"key-1", "name-1!", "", nil},
+		"key-1:name-1!:typ-": {"key-1", "name-1!", "typ-", nil},
+
 		"":          {"", "", "", errIdentifier},
 		"KEY":       {"", "", "", errIdentifier},
 		"::::":      {"", "", "", errIdentifier},
