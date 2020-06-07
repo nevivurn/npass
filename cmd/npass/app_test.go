@@ -139,8 +139,13 @@ func testNewApp(t *testing.T, pin pinentry.Pinentry) (*app, *bytes.Buffer) {
 
 	buf := &bytes.Buffer{}
 
+	schema, err := ioutil.ReadFile("testdata/test_schema.sql")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	st := testStore(t)
-	if err := st.initSchema(context.Background()); err != nil {
+	if _, err := st.Exec(string(schema)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
