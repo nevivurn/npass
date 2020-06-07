@@ -24,7 +24,7 @@ CREATE TABLE pass (
 	name	TEXT	NOT NULL,
 	type	TEXT	NOT NULL,
 	data	TEXT	NOT NULL,
-	UNIQUE	(key_id, name)
+	UNIQUE	(key_id, name, type)
 );
 CREATE TABLE meta (
 	key	TEXT	PRIMARY KEY NOT NULL,

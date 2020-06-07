@@ -11,7 +11,7 @@ CREATE TABLE pass (
 	name	TEXT	NOT NULL,
 	type	TEXT	NOT NULL,
 	data	TEXT	NOT NULL,
-	UNIQUE	(key_id, name)
+	UNIQUE	(key_id, name, type)
 );
 CREATE TABLE meta (
 	key	TEXT	PRIMARY KEY NOT NULL,
@@ -27,3 +27,9 @@ INSERT INTO keys (id, name, public, private) VALUES
 (1, 'test-1', 'CM4ICfq6RLZ/P6qqKElNe5Pr+pk+v1PKJrbTzsbvSHk', '3pgVPY99/aKrbxy5823b+oybwiszOvR2xI26DZo/EK2CoRBdlYi9b/RXQJkYNyJvvEiJ3vShSuVfuW7XoAhGtQ'),
 -- pass: test-2
 (2, 'test-2', 'LzjhStmiT786jQslhaHcREWoy9vwGOvDqfXHVTfZfxY', 'DIfeLde/lWgEYXMtKN1p3kAXTvihBWTBbaAT6t4Kz0nBtRDeWSYlJuA2HjTd82AFRVnOZIymNtdgmEAXjy7zmw');
+
+INSERT INTO pass (id, key_id, name, type, data) VALUES
+-- pass: "pass-1"
+(1, 1, 'test-1', 'pass', ''),
+-- pass: "pass-2"
+(2, 2, 'test-2', 'pass', '');

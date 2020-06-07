@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/crypto/nacl/secretbox"
@@ -31,7 +34,6 @@ func (a *app) cmdNew(ctx context.Context, args []string) error {
 }
 
 func (a *app) cmdNewKey(ctx context.Context, key string) error {
-	// Check if already exists
 	var exists bool
 	queryExists := `SELECT EXISTS(SELECT 1 FROM keys WHERE name = ?)`
 	err := a.st.QueryRowContext(ctx, queryExists, key).Scan(&exists)
@@ -78,5 +80,65 @@ func (a *app) cmdNewKey(ctx context.Context, key string) error {
 }
 
 func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
+	var (
+		keyID  int64
+		keyPub string
+	)
+	queryKey := `SELECT id, public FROM keys WHERE name = ? LIMIT 1`
+	err := a.st.QueryRowContext(ctx, queryKey, key).Scan(&keyID, &keyPub)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("non-existent key %q", key)
+	}
+	if err != nil {
+		return err
+	}
+
+	ptype, err := newPass(typ)
+	if err != nil {
+		return err
+	}
+
+	var exists bool
+	queryExists := `SELECT EXISTS(SELECT 1 FROM pass WHERE key_id = ? AND name = ? AND type = ?)`
+	err = a.st.QueryRowContext(ctx, queryExists, keyID, name, typ).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("duplicate pass %q", strings.Join([]string{key, name, typ}, ":"))
+	}
+
+	err = ptype.readPass(ctx, a, name)
+	if err != nil {
+		return err
+	}
+
+	passData, err := ptype.MarshalText()
+	if err != nil {
+		return err
+	}
+
+	keyPubRaw, err := base64.RawStdEncoding.DecodeString(keyPub)
+	if err != nil {
+		return err
+	}
+
+	var keyPubArr [32]byte
+	copy(keyPubArr[:], keyPubRaw)
+
+	passEnc, err := box.SealAnonymous(nil, passData, &keyPubArr, rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	queryInsert := `INSERT INTO pass (key_id, name, type, data) VALUES(?, ?, ?, ?)`
+	_, err = a.st.ExecContext(ctx, queryInsert,
+		keyID, name, typ,
+		base64.RawStdEncoding.EncodeToString(passEnc),
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
