@@ -63,20 +63,6 @@ func TestPassPasswordPrint(t *testing.T) {
 	}
 }
 
-func TestPassPasswordPrintRaw(t *testing.T) {
-	p := new(passPassword)
-	*p = passPassword("pass")
-
-	got, err := p.printRawPass()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if got != string(*p) {
-		t.Errorf("got %q; want %q", got, string(*p))
-	}
-}
-
 func TestPassPasswordMarshalText(t *testing.T) {
 	p := new(passPassword)
 	*p = passPassword("pass")

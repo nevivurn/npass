@@ -15,7 +15,6 @@ type passType interface {
 
 	readPass(context.Context, *app, string) error
 	printPass() (string, error)
-	printRawPass() (string, error)
 }
 
 var passTypeMap = map[string]func() passType{
@@ -43,10 +42,6 @@ func (p *passPassword) readPass(ctx context.Context, a *app, name string) error 
 }
 func (p *passPassword) printPass() (string, error) {
 	return string(*p), nil
-}
-
-func (p *passPassword) printRawPass() (string, error) {
-	return p.printPass()
 }
 
 func (p *passPassword) MarshalText() ([]byte, error) {
