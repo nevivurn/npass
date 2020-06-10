@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -80,6 +81,8 @@ func (a *app) cmdNewKey(ctx context.Context, key string) error {
 }
 
 func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
+	fullName := strings.Join([]string{key, name, typ}, ":")
+
 	var (
 		keyID  int64
 		keyPub string
@@ -105,7 +108,7 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("duplicate pass %q", strings.Join([]string{key, name, typ}, ":"))
+		return fmt.Errorf("duplicate pass %q", fullName)
 	}
 
 	err = ptype.readPass(ctx, a, name)
@@ -117,6 +120,7 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 	if err != nil {
 		return err
 	}
+	passData = bytes.Join([][]byte{[]byte(fullName), passData}, []byte(":"))
 
 	keyPubRaw, err := base64.RawStdEncoding.DecodeString(keyPub)
 	if err != nil {
@@ -140,6 +144,6 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 		return err
 	}
 
-	fmt.Fprintf(a.w, "created new pass %q\n", strings.Join([]string{key, name, typ}, ":"))
+	fmt.Fprintf(a.w, "created new pass %q\n", fullName)
 	return nil
 }
