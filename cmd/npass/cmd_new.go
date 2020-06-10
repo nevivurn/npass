@@ -140,5 +140,6 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 		return err
 	}
 
+	fmt.Fprintf(a.w, "created new pass %q\n", strings.Join([]string{key, name, typ}, ":"))
 	return nil
 }
