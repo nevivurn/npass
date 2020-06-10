@@ -60,6 +60,7 @@ func (a *app) Close() error {
 
 func (a *app) run(ctx context.Context, args []string) error {
 	return runMap{
-		"new": runFunc(a.cmdNew),
+		"new":  runFunc(a.cmdNew),
+		"show": runFunc(a.cmdShow),
 	}.run(ctx, args)
 }
