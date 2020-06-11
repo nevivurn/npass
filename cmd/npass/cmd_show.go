@@ -37,7 +37,7 @@ func (a *app) cmdShow(ctx context.Context, args []string) error {
 }
 
 func (a *app) cmdShowAll(ctx context.Context) error {
-	tx, err := a.st.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := a.st.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (a *app) cmdShowAll(ctx context.Context) error {
 }
 
 func (a *app) cmdShowKey(ctx context.Context, key string) error {
-	tx, err := a.st.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := a.st.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
