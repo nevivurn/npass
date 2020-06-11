@@ -124,6 +124,7 @@ func (a *app) cmdShowKey(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 
 	fmt.Fprintf(a.w, "%s %s:\n", key, kpub)
 
@@ -140,7 +141,46 @@ func (a *app) cmdShowKey(ctx context.Context, key string) error {
 }
 
 func (a *app) cmdShowName(ctx context.Context, key, name string) error {
-	panic("not yet implemented")
+	tx, err := a.st.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var kid int64
+	queryKey := `SELECT id FROM keys WHERE name = ? LIMIT 1`
+	err = tx.QueryRow(queryKey, key).Scan(&kid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("non-existent key %q", key)
+	}
+	if err != nil {
+		return err
+	}
+
+	queryPass := `SELECT type FROM pass WHERE key_id = ? AND name = ? ORDER BY type`
+	rows, err := tx.Query(queryPass, kid, name)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	exists := false
+	for rows.Next() {
+		exists = true
+
+		var typ string
+		err := rows.Scan(&typ)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(a.w, "%s:%s:%s\n", key, name, typ)
+	}
+
+	if !exists {
+		return fmt.Errorf("non-existent pass %q", fmt.Sprintf("%s:%s", key, name))
+	}
+
+	return tx.Commit()
 }
 
 func (a *app) cmdShowPass(ctx context.Context, key, name, typ string) error {
