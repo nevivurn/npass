@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
@@ -35,8 +36,14 @@ func (a *app) cmdShow(ctx context.Context, args []string) error {
 }
 
 func (a *app) cmdShowAll(ctx context.Context) error {
+	tx, err := a.st.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	queryKeys := `SELECT id, name, public FROM keys ORDER BY name`
-	rows, err := a.st.QueryContext(ctx, queryKeys)
+	rows, err := tx.Query(queryKeys)
 	if err != nil {
 		return err
 	}
@@ -58,7 +65,7 @@ func (a *app) cmdShowAll(ctx context.Context) error {
 	}
 
 	queryPass := `SELECT key_id, name, type FROM pass ORDER BY key_id, name, type`
-	rows, err = a.st.QueryContext(ctx, queryPass)
+	rows, err = tx.Query(queryPass)
 	if err != nil {
 		return err
 	}
@@ -88,7 +95,7 @@ func (a *app) cmdShowAll(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (a *app) cmdShowKey(ctx context.Context, key string) error {

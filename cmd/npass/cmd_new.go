@@ -35,9 +35,15 @@ func (a *app) cmdNew(ctx context.Context, args []string) error {
 }
 
 func (a *app) cmdNewKey(ctx context.Context, key string) error {
+	tx, err := a.st.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	var exists bool
 	queryExists := `SELECT EXISTS(SELECT 1 FROM keys WHERE name = ?)`
-	err := a.st.QueryRowContext(ctx, queryExists, key).Scan(&exists)
+	err = tx.QueryRow(queryExists, key).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -67,7 +73,7 @@ func (a *app) cmdNewKey(ctx context.Context, key string) error {
 	privEnc := secretbox.Seal(salt, priv[:], &[24]byte{}, &keyArr)
 
 	queryInsert := `INSERT INTO keys (name, public, private) VALUES(?, ?, ?)`
-	_, err = a.st.ExecContext(ctx, queryInsert,
+	_, err = tx.Exec(queryInsert,
 		key,
 		base64.RawStdEncoding.EncodeToString(pub[:]),
 		base64.RawStdEncoding.EncodeToString(privEnc),
@@ -77,18 +83,24 @@ func (a *app) cmdNewKey(ctx context.Context, key string) error {
 	}
 
 	fmt.Fprintf(a.w, "created new key %q: %s\n", key, base64.RawStdEncoding.EncodeToString(pub[:]))
-	return nil
+	return tx.Commit()
 }
 
 func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 	fullName := strings.Join([]string{key, name, typ}, ":")
+
+	tx, err := a.st.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
 	var (
 		keyID  int64
 		keyPub string
 	)
 	queryKey := `SELECT id, public FROM keys WHERE name = ? LIMIT 1`
-	err := a.st.QueryRowContext(ctx, queryKey, key).Scan(&keyID, &keyPub)
+	err = tx.QueryRow(queryKey, key).Scan(&keyID, &keyPub)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("non-existent key %q", key)
 	}
@@ -103,7 +115,7 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 
 	var exists bool
 	queryExists := `SELECT EXISTS(SELECT 1 FROM pass WHERE key_id = ? AND name = ? AND type = ?)`
-	err = a.st.QueryRowContext(ctx, queryExists, keyID, name, typ).Scan(&exists)
+	err = tx.QueryRow(queryExists, keyID, name, typ).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -136,7 +148,7 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 	}
 
 	queryInsert := `INSERT INTO pass (key_id, name, type, data) VALUES(?, ?, ?, ?)`
-	_, err = a.st.ExecContext(ctx, queryInsert,
+	_, err = tx.Exec(queryInsert,
 		keyID, name, typ,
 		base64.RawStdEncoding.EncodeToString(passEnc),
 	)
@@ -145,5 +157,5 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 	}
 
 	fmt.Fprintf(a.w, "created new pass %q\n", fullName)
-	return nil
+	return tx.Commit()
 }
