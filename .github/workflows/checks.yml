@@ -1,8 +1,8 @@
-name: Tests
+name: tests
 on: push
 
 jobs:
-    check:
+    tests:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/setup-go@v2
