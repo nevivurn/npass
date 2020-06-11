@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Initialize schema
 CREATE TABLE keys (
 	id	INTEGER	PRIMARY KEY NOT NULL,
@@ -24,12 +26,15 @@ INSERT INTO meta (key, value) VALUES('version', '1');
 -- Test keys
 INSERT INTO keys (id, name, public, private) VALUES
 -- pass: test-1
-(1, 'test-1', 'CM4ICfq6RLZ/P6qqKElNe5Pr+pk+v1PKJrbTzsbvSHk', '3pgVPY99/aKrbxy5823b+oybwiszOvR2xI26DZo/EK2CoRBdlYi9b/RXQJkYNyJvvEiJ3vShSuVfuW7XoAhGtQ'),
+(1, 'test-1', '5M60s3mDoFQJQOkZxyn0nOo2VuKzdUJZU60j3Ymkny4', 'iPKo4J3hZNL3yOHjTFez1FWaax96HPlGVG3azFMLBHrfnkV4D4WZMQ2dQaYw6n/BxmxlVSsVGMqgH1niHKP3qg'),
 -- pass: test-2
-(2, 'test-2', 'LzjhStmiT786jQslhaHcREWoy9vwGOvDqfXHVTfZfxY', 'DIfeLde/lWgEYXMtKN1p3kAXTvihBWTBbaAT6t4Kz0nBtRDeWSYlJuA2HjTd82AFRVnOZIymNtdgmEAXjy7zmw');
+(2, 'test-2', 'VIFZnL4uDjJIwU61yIN0NV5ORYdehWU2PYeTwMwDvwc', 'ALEHXVTZkQx3X0OS3aVoH2E/TvYIjJ6bb3gvlkVvEhA1+qcbVDXI3d/Q/XCuU4VfsQbKbf374KEccP1yp2ymmg');
 
+-- Test passwords
 INSERT INTO pass (id, key_id, name, type, data) VALUES
--- pass: "pass-1"
-(1, 1, 'test-1', 'pass', ''),
--- pass: "pass-2"
-(2, 2, 'test-2', 'pass', '');
+-- pass: pass-1
+(1, 1, 'test-1', 'pass', 'LUgYJuptQvsht2iIrKJ9tOnAPyG4V3XYKsCyda59/ly5iYCWejMYBQyN5lt0Nf6G4TelWpAAQTKDhrrfQPD3hxHUbxXsYuVdkg'),
+-- pass: pass-2
+(2, 2, 'test-2', 'pass', 'ktsKjAoBVw55Y7dU5GKocjPDxVQDeI+yMpEDPu5eBwnYTzSJ7JqlWcMT79EJlbuN/1Ht1P+OqAmiR1phDLEMbViyFDsq1GxNgg');
+
+COMMIT;

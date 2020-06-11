@@ -3,8 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
+
+	"golang.org/x/crypto/nacl/box"
+	"golang.org/x/crypto/nacl/secretbox"
 )
 
 func (a *app) cmdShow(ctx context.Context, args []string) error {
@@ -184,5 +189,111 @@ func (a *app) cmdShowName(ctx context.Context, key, name string) error {
 }
 
 func (a *app) cmdShowPass(ctx context.Context, key, name, typ string) error {
-	panic("not yet implemented")
+	tx, err := a.st.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var (
+		kid             int64
+		keyPub, keyPriv string
+	)
+	queryKey := `SELECT id, public, private FROM keys WHERE name = ? LIMIT 1`
+	err = tx.QueryRow(queryKey, key).Scan(&kid, &keyPub, &keyPriv)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("non-existent key %q", key)
+	}
+	if err != nil {
+		return err
+	}
+
+	keyPubRaw, err := base64.RawStdEncoding.DecodeString(keyPub)
+	if err != nil {
+		return err
+	}
+	keyPrivRaw, err := base64.RawStdEncoding.DecodeString(keyPriv)
+	if err != nil {
+		return err
+	}
+
+	var exists bool
+	queryNameExists := `SELECT EXISTS(SELECT 1 FROM pass WHERE key_id = ? AND name = ?)`
+	err = tx.QueryRow(queryNameExists, kid, name).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("non-existent pass %q", fmt.Sprintf("%s:%s", key, name))
+	}
+
+	pass, err := newPass(typ)
+	if err != nil {
+		return err
+	}
+
+	var passData []byte
+	queryPass := `SELECT data FROM pass WHERE key_id = ? AND name = ? AND type = ? LIMIT 1`
+	err = tx.QueryRow(queryPass, kid, name, typ).Scan(&passData)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("non-existent pass %s",
+			fmt.Sprintf("%s:%s:%s", key, name, typ))
+	}
+	if err != nil {
+		return err
+	}
+
+	passDataDec, err := base64.RawStdEncoding.DecodeString(string(passData))
+	if err != nil {
+		return err
+	}
+
+	salt := make([]byte, 16)
+	keyPrivRaw = keyPrivRaw[copy(salt, keyPrivRaw):]
+
+	var keyPrivDec []byte
+	_, err = a.pin.AskPass(ctx, fmt.Sprintf("Enter password for key %q:", key),
+		func(pass string) bool {
+			pkey := passKey(pass, salt)
+			var keyArr [32]byte
+			copy(keyArr[:], pkey)
+
+			dec, ok := secretbox.Open(nil, keyPrivRaw, &[24]byte{}, &keyArr)
+			if !ok {
+				return false
+			}
+
+			keyPrivDec = dec
+			return true
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	var keyPubArr, keyPrivArr [32]byte
+	copy(keyPubArr[:], keyPubRaw)
+	copy(keyPrivArr[:], keyPrivDec)
+
+	passDec, ok := box.OpenAnonymous(nil, passDataDec, &keyPubArr, &keyPrivArr)
+	if !ok {
+		return fmt.Errorf("decryption error")
+	}
+
+	if err := pass.UnmarshalText(passDec); err != nil {
+		return err
+	}
+
+	out, err := pass.printPass()
+	if err != nil {
+		return err
+	}
+
+	split := strings.SplitN(out, ":", 4)
+	if len(split) != 4 || split[0] != key || split[1] != name || split[2] != typ {
+		return fmt.Errorf("decryption error")
+	}
+	fmt.Fprintln(a.w, split[3])
+
+	return tx.Commit()
 }
