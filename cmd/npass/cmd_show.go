@@ -1,6 +1,9 @@
 package main
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 func (a *app) cmdShow(ctx context.Context, args []string) error {
 	if len(args) > 1 {
@@ -32,7 +35,60 @@ func (a *app) cmdShow(ctx context.Context, args []string) error {
 }
 
 func (a *app) cmdShowAll(ctx context.Context) error {
-	panic("not yet implemented")
+	queryKeys := `SELECT id, name, public FROM keys ORDER BY name`
+	rows, err := a.st.QueryContext(ctx, queryKeys)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type dbKey struct {
+		id        int64
+		name, pub string
+	}
+
+	var keys []dbKey
+	for rows.Next() {
+		var k dbKey
+		err := rows.Scan(&k.id, &k.name, &k.pub)
+		if err != nil {
+			return err
+		}
+		keys = append(keys, k)
+	}
+
+	queryPass := `SELECT key_id, name, type FROM pass ORDER BY key_id, name, type`
+	rows, err = a.st.QueryContext(ctx, queryPass)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type dbPass struct {
+		name, typ string
+	}
+
+	pass := make(map[int64][]dbPass)
+	for rows.Next() {
+		var (
+			p   dbPass
+			kid int64
+		)
+		err := rows.Scan(&kid, &p.name, &p.typ)
+		if err != nil {
+			return err
+		}
+		pass[kid] = append(pass[kid], p)
+	}
+
+	for _, k := range keys {
+		fmt.Fprintf(a.w, "%s %s:\n", k.name, k.pub)
+		for _, p := range pass[k.id] {
+			fmt.Fprintf(a.w, "  %s: [%s]\n", p.name, p.typ)
+		}
+	}
+
+	return nil
 }
 
 func (a *app) cmdShowKey(ctx context.Context, key string) error {
