@@ -40,7 +40,7 @@ func (a *app) cmdShowAll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	queryKeys := `SELECT id, name, public FROM keys ORDER BY name`
 	rows, err := tx.Query(queryKeys)

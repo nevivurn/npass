@@ -39,7 +39,7 @@ func (a *app) cmdNewKey(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var exists bool
 	queryExists := `SELECT EXISTS(SELECT 1 FROM keys WHERE name = ?)`
@@ -93,7 +93,7 @@ func (a *app) cmdNewPass(ctx context.Context, key, name, typ string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var (
 		keyID  int64
