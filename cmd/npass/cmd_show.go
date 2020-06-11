@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -99,7 +100,43 @@ func (a *app) cmdShowAll(ctx context.Context) error {
 }
 
 func (a *app) cmdShowKey(ctx context.Context, key string) error {
-	panic("not yet implemented")
+	tx, err := a.st.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var (
+		kid  int64
+		kpub string
+	)
+	queryKey := `SELECT id, public FROM keys WHERE name = ? LIMIT 1`
+	err = tx.QueryRow(queryKey, key).Scan(&kid, &kpub)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("non-existent key %q", key)
+	}
+	if err != nil {
+		return err
+	}
+
+	queryPass := `SELECT name, type FROM pass WHERE key_id = ? ORDER BY name, type`
+	rows, err := tx.Query(queryPass, kid)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.w, "%s %s:\n", key, kpub)
+
+	for rows.Next() {
+		var name, typ string
+		err := rows.Scan(&name, &typ)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(a.w, "  %s: [%s]\n", name, typ)
+	}
+
+	return tx.Commit()
 }
 
 func (a *app) cmdShowName(ctx context.Context, key, name string) error {
